@@ -8,21 +8,35 @@
 
 ---
 
-## Status — Milestone 1 (skeleton)
+## Status — Milestone 2 (first Sarvam tools)
 
-This repo currently ships the **milestone 1 skeleton**: a working FastMCP server over
-**stdio** with one health-check tool (`setu_ping`), full config + logging scaffolding, and
-tests. The Sarvam tool surface and reliability/telemetry middleware land in later milestones.
+Setu now exposes its first real Sarvam tools — **`sarvam_transcribe`** (Saaras v3
+speech-to-text) and **`sarvam_speak`** (Bulbul v3 text-to-speech) — alongside the
+`setu_ping` health check, over **stdio**. A `SETU_MODE=mock|live` switch means both
+tools run against deterministic fixtures by default (no key, no credits), and route to
+the real Sarvam SDK when `SETU_MODE=live`. Signatures are verified against the Sarvam
+API reference.
 
 | Milestone | Scope | State |
 |---|---|---|
-| **1** | Scaffold, config, structlog, FastMCP `setu_ping` over stdio | ✅ this repo |
-| 2 | `sarvam_speak` + `sarvam_transcribe` end-to-end (live) | ⬜ |
+| **1** | Scaffold, config, structlog, FastMCP `setu_ping` over stdio | ✅ |
+| **2** | `sarvam_transcribe` + `sarvam_speak`, mock/live dispatch | ✅ this repo |
 | 3 | Retry, rate-limit, cost/latency OTel telemetry middleware | ⬜ |
 | 4 | `translate`, `chat`, `transliterate`, `identify_language`, `parse_document` | ⬜ |
-| 5 | Mock mode + fixtures, unit tests, CI | ⬜ |
+| 5 | Fixtures hardening, coverage, CI | ⬜ |
 | 6 | streamable-HTTP transport, Dockerfile, docs | ⬜ |
 | 7 | 60-sec demo, tag → PyPI | ⬜ |
+
+### Tools
+
+| Tool | Model | Key inputs | Output |
+|---|---|---|---|
+| `setu_ping` | — | `message` | server/version/mode echo |
+| `sarvam_transcribe` | Saaras v3 | `audio_base64`\|`audio_url`, `language_code=auto`, `mode=codemix` | `text`, `language`, `confidence`, `latency_ms` |
+| `sarvam_speak` | Bulbul v3 | `text`, `target_language_code`, `speaker`, `model` | `audio_base64` (WAV), `format`, `chars`, `latency_ms` |
+
+Try them in mock mode with no key. To go live, set `SETU_MODE=live` and `SARVAM_API_KEY`,
+then install the SDK extra: `pip install -e '.[live]'`.
 
 ## Quickstart
 
@@ -99,9 +113,18 @@ setu-mcp/
 ├─ src/setu/
 │  ├─ config.py            # SetuSettings + SarvamSettings (pydantic-settings)
 │  ├─ logging.py           # structlog → stderr, JSON, request ids
-│  └─ server.py            # FastMCP app + setu_ping + stdio entrypoint
+│  ├─ modes.py             # live vs mock dispatch
+│  ├─ sarvam_client.py     # async wrapper over the Sarvam SDK (mock/live)
+│  ├─ fixtures/            # deterministic mock responses
+│  ├─ app.py               # shared FastMCP app + Sarvam client + settings
+│  ├─ tools/
+│  │  ├─ health.py         # setu_ping
+│  │  ├─ transcribe.py     # sarvam_transcribe (Saaras v3)
+│  │  └─ speak.py          # sarvam_speak (Bulbul v3)
+│  └─ server.py            # transport entrypoint (registers tools, runs stdio)
 └─ tests/
-   └─ test_ping.py         # imports, registration, and mock-default smoke tests
+   ├─ test_ping.py         # health-check + registration
+   └─ test_tools.py        # transcribe/speak (mock) + skipped live smoke test
 ```
 
 ## License
